@@ -1,108 +1,3 @@
-/**
- *  Steps handler
- */
-
-var Steps = {}
-
-Steps.init = function() {
-  this.buildParseUrl();
-  this.bindBtn('#step-1-btn', function(e){
-    ParseRequest.postData();
-    e.preventDefault();
-  })
-}
-
-Steps.buildParseUrl = function() {
-  var url = Config.getUrl();
-  $('#parse-url').html(url + '/parse');
-}
-
-Steps.bindBtn = function(id, callback) {
-  $(id).click(callback)
-}
-
-Steps.closeStep = function(id) {
-  $(id).addClass('step--disabled');
-}
-
-Steps.openStep  = function(id) {
-  $(id).removeClass('step--disabled');
-}
-
-Steps.fillStepOutput  = function(id, data) {
-  $(id).html('Output: ' + data).slideDown();
-}
-
-Steps.fillBtn  = function(id, message) {
-  $(id).addClass('success').html('✓  ' + message);
-}
-
-Steps.showWorkingMessage = function() {
-  $('#step-4').delay(500).slideDown();
-}
-
-
-/**
- *  Parse requests handler
- */
-
-var ParseRequest = {};
-
-ParseRequest.postData = function() {
-  XHR.setCallback(function(data){
-    // store objectID
-    Store.objectId = JSON.parse(data).objectId;
-    // close first step
-    Steps.closeStep('#step-1');
-    Steps.fillStepOutput('#step-1-output', data)
-    Steps.fillBtn('#step-1-btn', 'Posted');
-    // open second step
-    Steps.openStep('#step-2');
-    Steps.bindBtn('#step-2-btn', function(e){
-      ParseRequest.getData();
-      e.preventDefault();
-    });
-  });
-  XHR.POST('/parse/classes/GameScore');
-}
-
-ParseRequest.getData = function() {
-  XHR.setCallback(function(data){
-    // close second step
-    Steps.closeStep('#step-2');
-    Steps.fillStepOutput('#step-2-output', data)
-    Steps.fillBtn('#step-2-btn', 'Fetched');
-    // open third step
-    Steps.openStep('#step-3');
-    Steps.bindBtn('#step-3-btn', function(e){
-      ParseRequest.postCloudCodeData();
-      e.preventDefault();
-    })
-  });
-  XHR.GET('/parse/classes/GameScore');
-}
-
-ParseRequest.postCloudCodeData = function() {
-  XHR.setCallback(function(data){
-    // close second step
-    Steps.closeStep('#step-3');
-    Steps.fillStepOutput('#step-3-output', data)
-    Steps.fillBtn('#step-3-btn', 'Tested');
-    // open third step
-    Steps.showWorkingMessage();
-  });
-  XHR.POST('/parse/functions/hello');
-}
-
-
-/**
- * Store objectId and other references
- */
-
-var Store = {
-  objectId: ""
-};
-
 var Config = {}
 
 Config.getUrl = function() {
@@ -113,41 +8,56 @@ Config.getUrl = function() {
   return url;
 }
 
+Parse.initialize('myAppId','unused');
+Parse.serverURL = Config.getUrl() + '/parse'
 
+var Comment = Parse.Object.extend("Comment");
 /**
- * XHR object
+ *  Parse requests handler
  */
 
-var XHR = {}
+$("#publishComment").click(function(e) {
+  var body = $("#comment").val();
+  if (body == "") { return false }
+  var comment = new Comment();
 
-XHR.setCallback = function(callback) {
-  this.xhttp = new XMLHttpRequest();
-  var _self = this;
-  this.xhttp.onreadystatechange = function() {
-    if (_self.xhttp.readyState == 4 && _self.xhttp.status >= 200 && _self.xhttp.status <= 299) {
-      callback(_self.xhttp.responseText);
+  comment.set("body", body);
+  comment.save(null, {
+    success: function(comment) {
+      //renderComment(comment);
     }
-  };
+  });
+
+  e.preventDefault();
+});
+
+var renderComment = function(comment) {
+ var comments = $("#comments");
+ var newComment = $("<div>", { id: comment.id, class: "renderedComment pure-g step--container" }).append(
+   $("<div>", { class: "pure-u-1" }).append(
+   $("<p>").text(comment.get("body"))
+  )
+ );
+ $("#comment").val("");
+ comments.append(newComment);
 }
 
-XHR.POST = function(path, callback) {
-  var seed = {"score":1337,"playerName":"Sean Plott","cheatMode":false}
-  this.xhttp.open("POST", Config.getUrl() + path, true);
-  this.xhttp.setRequestHeader("X-Parse-Application-Id", "myAppId");
-  this.xhttp.setRequestHeader("Content-type", "application/json");
-  this.xhttp.send(JSON.stringify(seed));
-}
+$(document).ready(function() {
+  var queryObject = new Parse.Query(Comment);
+  queryObject.find({ 
+    success: function(results) {
+      for (var i = 0; i < results.length; i++) {
+        var c = results[i];
+        renderComment(c);
+      }
+    }
+  })
 
-XHR.GET = function(path, callback) {
-  this.xhttp.open("GET", Config.getUrl() + path + '/' + Store.objectId, true);
-  this.xhttp.setRequestHeader("X-Parse-Application-Id", "myAppId");
-  this.xhttp.setRequestHeader("Content-type", "application/json");
-  this.xhttp.send(null);
-}
+  var liveQuery = new Parse.Query('Comment');
+  var subscription = liveQuery.subscribe();
 
+  subscription.on('create', function(c) {
+    renderComment(c);
+  });
+});
 
-/**
- *  Boot
- */
-
-Steps.init();
