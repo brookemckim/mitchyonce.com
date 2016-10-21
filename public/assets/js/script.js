@@ -39,7 +39,7 @@ var renderComment = function(comment) {
   )
  );
  $("#comment").val("");
- comments.append(newComment);
+ comments.prepend(newComment);
 }
 
 $(document).ready(function() {
